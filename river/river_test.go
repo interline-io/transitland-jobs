@@ -7,6 +7,7 @@ import (
 
 	"github.com/interline-io/transitland-dbutil/testutil"
 	"github.com/interline-io/transitland-jobs/internal/jobtest"
+	"github.com/interline-io/transitland-jobs/jobs"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -27,13 +28,14 @@ func TestRiverJobs(t *testing.T) {
 	}
 	defer dbPool.Close()
 
-	newQueue := func(queuePrefix string) JobQueue {
+	newQueue := func(queuePrefix string) jobs.JobQueue {
 		q, err := NewRiverJobs(dbPool, queuePrefix)
 		if err != nil {
 			panic(err)
 		}
-		q.AddQueue("default", 8)
-		return q
+		q2 := jobs.NewJobLogger(q)
+		q2.AddQueue("default", 8)
+		return q2
 	}
 	jobtest.TestJobQueue(t, newQueue)
 }

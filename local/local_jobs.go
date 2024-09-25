@@ -7,43 +7,35 @@ import (
 	"time"
 
 	"github.com/interline-io/log"
-	"github.com/interline-io/transitland-jobs/internal/jobmapper"
 	"github.com/interline-io/transitland-jobs/jobs"
 )
 
-type Job = jobs.Job
-type JobFn = jobs.JobFn
-type JobQueue = jobs.JobQueue
-type JobMiddleware = jobs.JobMiddleware
-type JobWorker = jobs.JobWorker
-type JobArgs = jobs.JobArgs
-
 func init() {
-	var _ JobQueue = &LocalJobs{}
+	var _ jobs.JobQueue = &LocalJobs{}
 }
 
 type LocalJobs struct {
-	jobs           chan Job
-	jobfuncs       []func(context.Context, Job) error
+	jobs           chan jobs.Job
+	jobfuncs       []func(context.Context, jobs.Job) error
 	running        bool
-	middlewares    []JobMiddleware
+	middlewares    []jobs.JobMiddleware
 	uniqueJobs     map[string]bool
 	uniqueJobsLock sync.Mutex
-	jobMapper      *jobmapper.JobMapper
+	jobMapper      *jobs.JobMapper
 	ctx            context.Context
 	cancel         context.CancelFunc
 }
 
 func NewLocalJobs() *LocalJobs {
 	f := &LocalJobs{
-		jobs:       make(chan Job, 1000),
+		jobs:       make(chan jobs.Job, 1000),
 		uniqueJobs: map[string]bool{},
-		jobMapper:  jobmapper.NewJobMapper(),
+		jobMapper:  jobs.NewJobMapper(),
 	}
 	return f
 }
 
-func (f *LocalJobs) Use(mwf JobMiddleware) {
+func (f *LocalJobs) Use(mwf jobs.JobMiddleware) {
 	f.middlewares = append(f.middlewares, mwf)
 }
 
@@ -54,11 +46,11 @@ func (f *LocalJobs) AddQueue(queue string, count int) error {
 	return nil
 }
 
-func (f *LocalJobs) AddJobType(jobFn JobFn) error {
+func (f *LocalJobs) AddJobType(jobFn jobs.JobFn) error {
 	return f.jobMapper.AddJobType(jobFn)
 }
 
-func (f *LocalJobs) AddJobs(ctx context.Context, jobs []Job) error {
+func (f *LocalJobs) AddJobs(ctx context.Context, jobs []jobs.Job) error {
 	for _, job := range jobs {
 		err := f.AddJob(ctx, job)
 		if err != nil {
@@ -68,7 +60,7 @@ func (f *LocalJobs) AddJobs(ctx context.Context, jobs []Job) error {
 	return nil
 }
 
-func (f *LocalJobs) AddJob(ctx context.Context, job Job) error {
+func (f *LocalJobs) AddJob(ctx context.Context, job jobs.Job) error {
 	if f.jobs == nil {
 		return errors.New("closed")
 	}
@@ -88,12 +80,11 @@ func (f *LocalJobs) AddJob(ctx context.Context, job Job) error {
 		}
 	}
 	f.jobs <- job
-	log.Info().Interface("job", job).Msg("jobs: added job")
 	return nil
 }
 
-func (f *LocalJobs) RunJob(ctx context.Context, job Job) error {
-	job = Job{
+func (f *LocalJobs) RunJob(ctx context.Context, job jobs.Job) error {
+	job = jobs.Job{
 		JobType:     job.JobType,
 		JobArgs:     job.JobArgs,
 		JobDeadline: job.JobDeadline,
@@ -135,10 +126,9 @@ func (f *LocalJobs) Run(ctx context.Context) error {
 		return errors.New("already running")
 	}
 	f.ctx, f.cancel = context.WithCancel(ctx)
-	log.Infof("jobs: running")
 	f.running = true
 	for _, jobfunc := range f.jobfuncs {
-		go func(jf func(context.Context, Job) error) {
+		go func(jf func(context.Context, jobs.Job) error) {
 			for job := range f.jobs {
 				if err := jf(ctx, job); err != nil {
 					log.Trace().Err(err).Msg("job failed")
@@ -154,7 +144,6 @@ func (f *LocalJobs) Stop(ctx context.Context) error {
 	if !f.running {
 		return errors.New("not running")
 	}
-	log.Infof("jobs: stopping")
 	close(f.jobs)
 	f.cancel()
 	f.running = false

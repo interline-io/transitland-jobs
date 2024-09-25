@@ -1,29 +1,27 @@
-package jobmapper
+package jobs
 
 import (
 	"encoding/json"
 	"errors"
-
-	"github.com/interline-io/transitland-jobs/jobs"
 )
 
 ///////////
 
 type JobMapper struct {
-	jobFns map[string]jobs.JobFn
+	jobFns map[string]JobFn
 }
 
 func NewJobMapper() *JobMapper {
-	return &JobMapper{jobFns: map[string]jobs.JobFn{}}
+	return &JobMapper{jobFns: map[string]JobFn{}}
 }
 
-func (j *JobMapper) AddJobType(jobFn jobs.JobFn) error {
+func (j *JobMapper) AddJobType(jobFn JobFn) error {
 	jw := jobFn()
 	j.jobFns[jw.Kind()] = jobFn
 	return nil
 }
 
-func (j *JobMapper) GetRunner(jobType string, jobArgs jobs.JobArgs) (jobs.JobWorker, error) {
+func (j *JobMapper) GetRunner(jobType string, jobArgs JobArgs) (JobWorker, error) {
 	jobFn, ok := j.jobFns[jobType]
 	if !ok {
 		return nil, errors.New("unknown job type")

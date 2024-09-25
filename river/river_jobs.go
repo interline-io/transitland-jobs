@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/interline-io/log"
-	"github.com/interline-io/transitland-jobs/internal/jobmapper"
 	"github.com/interline-io/transitland-jobs/jobs"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,21 +15,14 @@ import (
 	"github.com/rs/zerolog"
 )
 
-type JobFn = jobs.JobFn
-type Job = jobs.Job
-type JobQueue = jobs.JobQueue
-type JobMiddleware = jobs.JobMiddleware
-type JobWorker = jobs.JobWorker
-type JobArgs = jobs.JobArgs
-
 func init() {
-	var _ JobQueue = &RiverJobs{}
+	var _ jobs.JobQueue = &RiverJobs{}
 }
 
 //////////////
 
 type riverJobArgs struct {
-	Job
+	jobs.Job
 }
 
 func (r riverJobArgs) Kind() string {
@@ -42,20 +33,19 @@ func (r riverJobArgs) Kind() string {
 
 type RiverJobs struct {
 	queuePrefix  string
-	jobMapper    *jobmapper.JobMapper
+	jobMapper    *jobs.JobMapper
 	pool         *pgxpool.Pool
 	riverWorkers *river.Workers
 	riverClient  *river.Client[pgx.Tx]
-	middlewares  []JobMiddleware
+	middlewares  []jobs.JobMiddleware
 	log          zerolog.Logger
 }
 
 func NewRiverJobs(pool *pgxpool.Pool, queuePrefix string) (*RiverJobs, error) {
 	w := &RiverJobs{
 		pool:        pool,
-		jobMapper:   jobmapper.NewJobMapper(),
+		jobMapper:   jobs.NewJobMapper(),
 		queuePrefix: queuePrefix,
-		log:         log.Logger.With().Str("runner", "river").Logger(),
 	}
 	return w, w.initClient()
 }
@@ -91,21 +81,19 @@ func (w *RiverJobs) initClient() error {
 	return nil
 }
 
-func (w *RiverJobs) Use(mwf JobMiddleware) {
+func (w *RiverJobs) Use(mwf jobs.JobMiddleware) {
 	w.middlewares = append(w.middlewares, mwf)
 }
 
 func (w *RiverJobs) AddQueue(queue string, count int) error {
-	w.log.Info().Str("queue", queue).Msg("jobs: adding queue")
 	return w.riverClient.Queues().Add(w.queueName(queue), river.QueueConfig{MaxWorkers: count})
 }
 
-func (w *RiverJobs) AddJobType(jobFn JobFn) error {
+func (w *RiverJobs) AddJobType(jobFn jobs.JobFn) error {
 	jw := jobFn()
 	if jw == nil {
 		return errors.New("invalid job function")
 	}
-	w.log.Info().Str("type", jw.Kind()).Msg("jobs: adding job type")
 	return w.jobMapper.AddJobType(jobFn)
 }
 
@@ -119,7 +107,7 @@ func (w *RiverJobs) queueName(queue string) string {
 	return queue
 }
 
-func (w *RiverJobs) AddJobs(ctx context.Context, jobs []Job) error {
+func (w *RiverJobs) AddJobs(ctx context.Context, jobs []jobs.Job) error {
 	tx, err := w.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -153,11 +141,11 @@ func (w *RiverJobs) AddJobs(ctx context.Context, jobs []Job) error {
 	return tx.Commit(ctx)
 }
 
-func (w *RiverJobs) AddJob(ctx context.Context, job Job) error {
-	return w.AddJobs(ctx, []Job{job})
+func (w *RiverJobs) AddJob(ctx context.Context, job jobs.Job) error {
+	return w.AddJobs(ctx, []jobs.Job{job})
 }
 
-func (w *RiverJobs) RunJob(ctx context.Context, job Job) error {
+func (w *RiverJobs) RunJob(ctx context.Context, job jobs.Job) error {
 	now := time.Now().In(time.UTC).Unix()
 	if job.JobDeadline > 0 && now > job.JobDeadline {
 		w.log.Trace().Int64("job_deadline", job.JobDeadline).Int64("now", now).Msg("job skipped - deadline in past")
@@ -176,15 +164,10 @@ func (w *RiverJobs) RunJob(ctx context.Context, job Job) error {
 			return errors.New("no job after middleware")
 		}
 	}
-	if err := runner.Run(ctx, job); err != nil {
-		w.log.Trace().Err(err).Msg("job failed")
-		return err
-	}
-	return nil
+	return runner.Run(ctx, job)
 }
 
 func (w *RiverJobs) Run(ctx context.Context) error {
-	w.log.Info().Msg("jobs: run")
 	if err := w.riverClient.Start(ctx); err != nil {
 		return err
 	}
@@ -193,7 +176,6 @@ func (w *RiverJobs) Run(ctx context.Context) error {
 }
 
 func (w *RiverJobs) Stop(ctx context.Context) error {
-	w.log.Info().Msg("jobs: stop")
 	if err := w.riverClient.Stop(ctx); err != nil {
 		return err
 	}

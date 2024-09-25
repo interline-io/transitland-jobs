@@ -12,19 +12,11 @@ import (
 	"github.com/go-redis/redis/v8"
 
 	"github.com/interline-io/log"
-	"github.com/interline-io/transitland-jobs/internal/jobmapper"
 	"github.com/interline-io/transitland-jobs/jobs"
 )
 
-type Job = jobs.Job
-type JobFn = jobs.JobFn
-type JobQueue = jobs.JobQueue
-type JobMiddleware = jobs.JobMiddleware
-type JobWorker = jobs.JobWorker
-type JobArgs = jobs.JobArgs
-
 func init() {
-	var _ JobQueue = &RedisJobs{}
+	var _ jobs.JobQueue = &RedisJobs{}
 }
 
 // RedisJobs is a simple wrapper around go-workers
@@ -33,8 +25,8 @@ type RedisJobs struct {
 	producer    *workers.Producer
 	manager     *workers.Manager
 	client      *redis.Client
-	jobMapper   *jobmapper.JobMapper
-	middlewares []JobMiddleware
+	jobMapper   *jobs.JobMapper
+	middlewares []jobs.JobMiddleware
 	cancel      context.CancelFunc
 	ctx         context.Context
 }
@@ -43,12 +35,12 @@ func NewRedisJobs(client *redis.Client, queuePrefix string) *RedisJobs {
 	f := RedisJobs{
 		queuePrefix: queuePrefix,
 		client:      client,
-		jobMapper:   jobmapper.NewJobMapper(),
+		jobMapper:   jobs.NewJobMapper(),
 	}
 	return &f
 }
 
-func (f *RedisJobs) Use(mwf JobMiddleware) {
+func (f *RedisJobs) Use(mwf jobs.JobMiddleware) {
 	f.middlewares = append(f.middlewares, mwf)
 }
 
@@ -59,7 +51,7 @@ func (f *RedisJobs) AddQueue(queue string, count int) error {
 	}
 	manager.AddWorker(f.queueName(queue), count, func(msg *workers.Msg) error {
 		j := msg.Args()
-		job := Job{JobType: msg.Class()}
+		job := jobs.Job{JobType: msg.Class()}
 		job.JobArgs, _ = j.Get("job_args").Map()
 		job.JobDeadline, _ = j.Get("job_deadline").Int64()
 		job.Unique, _ = j.Get("unique").Bool()
@@ -68,11 +60,11 @@ func (f *RedisJobs) AddQueue(queue string, count int) error {
 	return nil
 }
 
-func (w *RedisJobs) AddJobType(jobFn JobFn) error {
+func (w *RedisJobs) AddJobType(jobFn jobs.JobFn) error {
 	return w.jobMapper.AddJobType(jobFn)
 }
 
-func (f *RedisJobs) RunJob(ctx context.Context, job Job) error {
+func (f *RedisJobs) RunJob(ctx context.Context, job jobs.Job) error {
 	now := time.Now().In(time.UTC).Unix()
 	if job.Unique {
 		// Consider more advanced locking options
@@ -107,13 +99,10 @@ func (f *RedisJobs) RunJob(ctx context.Context, job Job) error {
 			return errors.New("no job")
 		}
 	}
-	if err := w.Run(ctx, job); err != nil {
-		log.Trace().Err(err).Msg("job failed")
-	}
-	return nil
+	return w.Run(ctx, job)
 }
 
-func (f *RedisJobs) AddJobs(ctx context.Context, jobs []Job) error {
+func (f *RedisJobs) AddJobs(ctx context.Context, jobs []jobs.Job) error {
 	for _, job := range jobs {
 		err := f.AddJob(ctx, job)
 		if err != nil {
@@ -123,7 +112,7 @@ func (f *RedisJobs) AddJobs(ctx context.Context, jobs []Job) error {
 	return nil
 }
 
-func (f *RedisJobs) AddJob(ctx context.Context, job Job) error {
+func (f *RedisJobs) AddJob(ctx context.Context, job jobs.Job) error {
 	if f.producer == nil {
 		var err error
 		f.producer, err = workers.NewProducerWithRedisClient(workers.Options{
@@ -151,7 +140,7 @@ func (f *RedisJobs) AddJob(ctx context.Context, job Job) error {
 			logMsg.Msg("unique job locked")
 		}
 	}
-	rjob := Job{
+	rjob := jobs.Job{
 		JobType:     job.JobType,
 		JobArgs:     job.JobArgs,
 		Unique:      job.Unique,
@@ -179,7 +168,6 @@ func (f *RedisJobs) getManager() (*workers.Manager, error) {
 }
 
 func (f *RedisJobs) Run(ctx context.Context) error {
-	log.Infof("jobs: running")
 	f.ctx, f.cancel = context.WithCancel(ctx)
 	manager, err := f.getManager()
 	if err == nil {
@@ -191,7 +179,6 @@ func (f *RedisJobs) Run(ctx context.Context) error {
 }
 
 func (f *RedisJobs) Stop(ctx context.Context) error {
-	log.Infof("jobs: stopping")
 	manager, err := f.getManager()
 	if err == nil {
 		manager.Stop()

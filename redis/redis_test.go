@@ -5,6 +5,7 @@ import (
 
 	"github.com/interline-io/transitland-dbutil/testutil"
 	"github.com/interline-io/transitland-jobs/internal/jobtest"
+	"github.com/interline-io/transitland-jobs/jobs"
 )
 
 func TestRedisJobs(t *testing.T) {
@@ -14,8 +15,8 @@ func TestRedisJobs(t *testing.T) {
 		return
 	}
 	client := testutil.MustOpenTestRedisClient(t)
-	newQueue := func(prefix string) JobQueue {
-		q := NewRedisJobs(client, prefix)
+	newQueue := func(prefix string) jobs.JobQueue {
+		q := jobs.NewJobLogger(NewRedisJobs(client, prefix))
 		q.AddQueue("default", 4)
 		return q
 	}
