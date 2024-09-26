@@ -23,16 +23,16 @@ var (
 	feeds = []string{"BA", "SF", "AC", "CT"}
 )
 
-type testWorker struct {
+type TestWorker struct {
 	kind  string
 	count *int64
 }
 
-func (t *testWorker) Kind() string {
+func (t *TestWorker) Kind() string {
 	return t.kind
 }
 
-func (t *testWorker) Run(ctx context.Context, _ Job) error {
+func (t *TestWorker) Run(ctx context.Context) error {
 	time.Sleep(1 * time.Millisecond)
 	atomic.AddInt64(t.count, 1)
 	return nil
@@ -54,7 +54,7 @@ func TestJobQueue(t *testing.T, newQueue func(string) JobQueue) {
 	t.Run("run", func(t *testing.T) {
 		rtJobs := newQueue(queueName(t))
 		count := int64(0)
-		checkErr(t, rtJobs.AddJobType(func() JobWorker { return &testWorker{count: &count, kind: "testRun"} }))
+		checkErr(t, rtJobs.AddJobType(func() JobWorker { return &TestWorker{count: &count, kind: "testRun"} }))
 		for _, feed := range feeds {
 			if err := rtJobs.RunJob(ctx, Job{JobType: "testRun", JobArgs: JobArgs{"feed_id": feed}}); err != nil {
 				t.Fatal(err)
@@ -67,7 +67,7 @@ func TestJobQueue(t *testing.T, newQueue func(string) JobQueue) {
 		rtJobs := newQueue(queueName(t))
 		// Add workers
 		count := int64(0)
-		checkErr(t, rtJobs.AddJobType(func() JobWorker { return &testWorker{count: &count, kind: "test"} }))
+		checkErr(t, rtJobs.AddJobType(func() JobWorker { return &TestWorker{count: &count, kind: "test"} }))
 
 		// Add jobs
 		for _, feed := range feeds {
@@ -90,7 +90,7 @@ func TestJobQueue(t *testing.T, newQueue func(string) JobQueue) {
 		rtJobs := newQueue(queueName(t))
 		// Add workers
 		count := int64(0)
-		checkErr(t, rtJobs.AddJobType(func() JobWorker { return &testWorker{count: &count, kind: "testAddJobs"} }))
+		checkErr(t, rtJobs.AddJobType(func() JobWorker { return &TestWorker{count: &count, kind: "testAddJobs"} }))
 		// Add jobs
 		var jobs []Job
 		for i := 0; i < 10; i++ {
@@ -113,8 +113,8 @@ func TestJobQueue(t *testing.T, newQueue func(string) JobQueue) {
 		rtJobs := newQueue(queueName(t))
 		// Add workers
 		count := int64(0)
-		checkErr(t, rtJobs.AddJobType(func() JobWorker { return &testWorker{count: &count, kind: "testUnique"} }))
-		checkErr(t, rtJobs.AddJobType(func() JobWorker { return &testWorker{count: &count, kind: "testNotUnique"} }))
+		checkErr(t, rtJobs.AddJobType(func() JobWorker { return &TestWorker{count: &count, kind: "testUnique"} }))
+		checkErr(t, rtJobs.AddJobType(func() JobWorker { return &TestWorker{count: &count, kind: "testNotUnique"} }))
 
 		// Add jobs
 		for i := 0; i < 10; i++ {
@@ -148,7 +148,7 @@ func TestJobQueue(t *testing.T, newQueue func(string) JobQueue) {
 		rtJobs := newQueue(queueName(t))
 		// Add workers
 		count := int64(0)
-		checkErr(t, rtJobs.AddJobType(func() JobWorker { return &testWorker{count: &count, kind: "testDeadline"} }))
+		checkErr(t, rtJobs.AddJobType(func() JobWorker { return &TestWorker{count: &count, kind: "testDeadline"} }))
 		// Add jobs
 		rtJobs.AddJob(ctx, Job{JobType: "testDeadline", JobArgs: JobArgs{"test": "test"}, JobDeadline: 0})
 		rtJobs.AddJob(ctx, Job{JobType: "testDeadline", JobArgs: JobArgs{"test": "test"}, JobDeadline: time.Now().Add(1 * time.Hour).Unix()})
@@ -167,7 +167,7 @@ func TestJobQueue(t *testing.T, newQueue func(string) JobQueue) {
 		rtJobs := newQueue(queueName(t))
 		// Add middleware
 		jwCount := int64(0)
-		rtJobs.Use(func(w JobWorker) JobWorker {
+		rtJobs.Use(func(w JobWorker, j Job) JobWorker {
 			return &testJobMiddleware{
 				JobWorker: w,
 				jobCount:  &jwCount,
@@ -175,7 +175,7 @@ func TestJobQueue(t *testing.T, newQueue func(string) JobQueue) {
 		})
 		// Add workers
 		count := int64(0)
-		checkErr(t, rtJobs.AddJobType(func() JobWorker { return &testWorker{count: &count, kind: "testMiddleware"} }))
+		checkErr(t, rtJobs.AddJobType(func() JobWorker { return &TestWorker{count: &count, kind: "testMiddleware"} }))
 		rtJobs.AddJob(ctx, Job{JobType: "testMiddleware", JobArgs: JobArgs{"mw": "ok1"}})
 		rtJobs.AddJob(ctx, Job{JobType: "testMiddleware", JobArgs: JobArgs{"mw": "ok2"}})
 		// Run
@@ -196,9 +196,9 @@ type testJobMiddleware struct {
 	JobWorker
 }
 
-func (w *testJobMiddleware) Run(ctx context.Context, job Job) error {
+func (w *testJobMiddleware) Run(ctx context.Context) error {
 	atomic.AddInt64(w.jobCount, 10)
-	if err := w.JobWorker.Run(ctx, job); err != nil {
+	if err := w.JobWorker.Run(ctx); err != nil {
 		return err
 	}
 	return nil
