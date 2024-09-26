@@ -6,7 +6,7 @@ require (
 	github.com/digitalocean/go-workers2 v0.10.4
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/interline-io/log v0.0.0-20240613202707-4e3adcc06d2d
-	github.com/interline-io/transitland-dbutil v0.0.0-20240921002057-a0d8e4032291
+	github.com/interline-io/transitland-dbutil v0.0.0-20240926050128-c077a48a6bd9
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/riverqueue/river v0.12.0
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.12.0
