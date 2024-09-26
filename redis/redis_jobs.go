@@ -94,12 +94,12 @@ func (f *RedisJobs) RunJob(ctx context.Context, job jobs.Job) error {
 		return errors.New("no job")
 	}
 	for _, mwf := range f.middlewares {
-		w = mwf(w)
+		w = mwf(w, job)
 		if w == nil {
 			return errors.New("no job")
 		}
 	}
-	return w.Run(ctx, job)
+	return w.Run(ctx)
 }
 
 func (f *RedisJobs) AddJobs(ctx context.Context, jobs []jobs.Job) error {

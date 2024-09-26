@@ -84,12 +84,6 @@ func (f *LocalJobs) AddJob(ctx context.Context, job jobs.Job) error {
 }
 
 func (f *LocalJobs) RunJob(ctx context.Context, job jobs.Job) error {
-	job = jobs.Job{
-		JobType:     job.JobType,
-		JobArgs:     job.JobArgs,
-		JobDeadline: job.JobDeadline,
-		Unique:      job.Unique,
-	}
 	now := time.Now().In(time.UTC).Unix()
 	if job.JobDeadline > 0 && job.JobDeadline < now {
 		log.Trace().Int64("job_deadline", job.JobDeadline).Int64("now", now).Msg("job skipped - deadline in past")
@@ -113,12 +107,12 @@ func (f *LocalJobs) RunJob(ctx context.Context, job jobs.Job) error {
 		return errors.New("no job")
 	}
 	for _, mwf := range f.middlewares {
-		w = mwf(w)
+		w = mwf(w, job)
 		if w == nil {
 			return errors.New("no job")
 		}
 	}
-	return w.Run(ctx, job)
+	return w.Run(ctx)
 }
 
 func (f *LocalJobs) Run(ctx context.Context) error {
@@ -130,9 +124,7 @@ func (f *LocalJobs) Run(ctx context.Context) error {
 	for _, jobfunc := range f.jobfuncs {
 		go func(jf func(context.Context, jobs.Job) error) {
 			for job := range f.jobs {
-				if err := jf(ctx, job); err != nil {
-					log.Trace().Err(err).Msg("job failed")
-				}
+				jf(ctx, job)
 			}
 		}(jobfunc)
 	}

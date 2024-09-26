@@ -159,12 +159,12 @@ func (w *RiverJobs) RunJob(ctx context.Context, job jobs.Job) error {
 		return errors.New("no job")
 	}
 	for _, mwf := range w.middlewares {
-		runner = mwf(runner)
+		runner = mwf(runner, job)
 		if runner == nil {
 			return errors.New("no job after middleware")
 		}
 	}
-	return runner.Run(ctx, job)
+	return runner.Run(ctx)
 }
 
 func (w *RiverJobs) Run(ctx context.Context) error {

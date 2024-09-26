@@ -26,9 +26,8 @@ type Job struct {
 	Queue       string  `json:"queue"`
 	JobType     string  `json:"job_type" river:"unique"`
 	JobArgs     JobArgs `json:"job_args" river:"unique"`
-	Unique      bool    `json:"unique"`
 	JobDeadline int64   `json:"job_deadline"`
-	jobId       string  `json:"-"`
+	Unique      bool    `json:"unique"`
 }
 
 func (job *Job) HexKey() (string, error) {
@@ -43,9 +42,9 @@ func (job *Job) HexKey() (string, error) {
 // JobWorker defines a job worker
 type JobWorker interface {
 	Kind() string
-	Run(context.Context, Job) error
+	Run(context.Context) error
 }
 
 type JobFn func() JobWorker
 
-type JobMiddleware func(JobWorker) JobWorker
+type JobMiddleware func(JobWorker, Job) JobWorker

@@ -70,12 +70,13 @@ func (w *JobLogger) Stop(ctx context.Context) error {
 
 type JobRunLogger struct {
 	log zerolog.Logger
+	job Job
 	JobWorker
 }
 
-func (w *JobRunLogger) Run(ctx context.Context, job Job) error {
+func (w *JobRunLogger) Run(ctx context.Context) error {
 	// Create logger for this job
-	ctxLogger := log.For(ctx).With().Str("job_type", job.JobType).Any("job_args", job.JobArgs).Logger()
+	ctxLogger := log.For(ctx).With().Str("job_type", w.job.JobType).Any("job_args", w.job.JobArgs).Logger()
 
 	// Attach to the context
 	ctx = ctxLogger.WithContext(ctx)
@@ -83,7 +84,7 @@ func (w *JobRunLogger) Run(ctx context.Context, job Job) error {
 	// Run next job
 	t1 := time.Now()
 	ctxLogger.Info().Msg("job: started")
-	if err := w.JobWorker.Run(ctx, job); err != nil {
+	if err := w.JobWorker.Run(ctx); err != nil {
 		ctxLogger.Error().Err(err).Msg("job: error")
 		return err
 	}
@@ -93,9 +94,10 @@ func (w *JobRunLogger) Run(ctx context.Context, job Job) error {
 }
 
 func NewJobRunLogger(logger zerolog.Logger) JobMiddleware {
-	return func(jw JobWorker) JobWorker {
+	return func(jw JobWorker, j Job) JobWorker {
 		return &JobRunLogger{
 			log:       logger,
+			job:       j,
 			JobWorker: jw,
 		}
 	}
