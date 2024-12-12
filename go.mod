@@ -5,8 +5,8 @@ go 1.23.0
 require (
 	github.com/digitalocean/go-workers2 v0.10.4
 	github.com/go-redis/redis/v8 v8.11.5
-	github.com/interline-io/log v0.0.0-20240613202707-4e3adcc06d2d
-	github.com/interline-io/transitland-dbutil v0.0.0-20241211003846-754ca2a37d9d
+	github.com/interline-io/log v0.0.0-20241212203449-4bcff214cd71
+	github.com/interline-io/transitland-dbutil v0.0.0-20241212203507-15a69a52c1c4
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/riverqueue/river v0.12.0
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.12.0
