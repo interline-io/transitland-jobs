@@ -6,7 +6,7 @@ require (
 	github.com/digitalocean/go-workers2 v0.10.4
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/interline-io/log v0.0.0-20241212203449-4bcff214cd71
-	github.com/interline-io/transitland-dbutil v0.0.0-20250121190919-c9e6032c7c54
+	github.com/interline-io/transitland-dbutil v0.0.0-20250205070602-f4cb2fc29f2c
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/riverqueue/river v0.12.0
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.12.0
@@ -40,7 +40,7 @@ require (
 	go.uber.org/goleak v1.3.0 // indirect
 	golang.org/x/crypto v0.27.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.29.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
 	gopkg.in/dnaeon/go-vcr.v2 v2.3.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
