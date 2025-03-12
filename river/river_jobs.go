@@ -60,6 +60,7 @@ func (w *RiverJobs) initClient() error {
 	w.riverWorkers = river.NewWorkers()
 	w.riverClient, err = river.NewClient(riverpgxv5.New(w.pool), &river.Config{
 		Queues:            map[string]river.QueueConfig{defaultQueue: {MaxWorkers: 4}},
+		JobTimeout:        60 * time.Minute,
 		Workers:           w.riverWorkers,
 		FetchCooldown:     50 * time.Millisecond,
 		FetchPollInterval: 100 * time.Millisecond,
