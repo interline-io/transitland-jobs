@@ -150,6 +150,10 @@ func (f *RedisJobs) AddJob(ctx context.Context, job jobs.Job) error {
 	return err
 }
 
+func (w *RedisJobs) AddPeriodicJob(ctx context.Context, jobFunc func() jobs.Job, period time.Duration, cronTab string) error {
+	return errors.New("AddPeriodicJob not implemented for RedisJobs")
+}
+
 func (f *RedisJobs) queueName(q string) string {
 	if q == "" {
 		q = "default"

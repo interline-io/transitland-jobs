@@ -83,6 +83,21 @@ func (f *LocalJobs) AddJob(ctx context.Context, job jobs.Job) error {
 	return nil
 }
 
+func (w *LocalJobs) AddPeriodicJob(ctx context.Context, jobFunc func() jobs.Job, period time.Duration, cronTab string) error {
+	ticker := time.NewTicker(period)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				w.AddJob(ctx, jobFunc())
+			}
+		}
+	}()
+	return nil
+}
+
 func (f *LocalJobs) RunJob(ctx context.Context, job jobs.Job) error {
 	now := time.Now().In(time.UTC).Unix()
 	if job.JobDeadline > 0 && job.JobDeadline < now {

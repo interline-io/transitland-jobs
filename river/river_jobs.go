@@ -37,6 +37,7 @@ type RiverJobs struct {
 	pool         *pgxpool.Pool
 	riverWorkers *river.Workers
 	riverClient  *river.Client[pgx.Tx]
+	periodicJobs []*river.PeriodicJob
 	middlewares  []jobs.JobMiddleware
 	log          zerolog.Logger
 }
@@ -55,6 +56,7 @@ func (w *RiverJobs) RiverClient() *river.Client[pgx.Tx] {
 }
 
 func (w *RiverJobs) initClient() error {
+	fmt.Println("initClient")
 	var err error
 	defaultQueue := w.queueName("default")
 	w.riverWorkers = river.NewWorkers()
@@ -116,25 +118,7 @@ func (w *RiverJobs) AddJobs(ctx context.Context, jobs []jobs.Job) error {
 	defer tx.Rollback(ctx)
 	var rparams []river.InsertManyParams
 	for _, job := range jobs {
-		insertOpts := river.InsertOpts{}
-		insertOpts.Queue = w.queueName(job.Queue)
-		if job.Unique {
-			insertOpts.UniqueOpts = river.UniqueOpts{
-				ByArgs:   true,
-				ByPeriod: 24 * time.Hour,
-				ByState: []rivertype.JobState{
-					rivertype.JobStateAvailable,
-					rivertype.JobStatePending,
-					rivertype.JobStateRunning,
-					rivertype.JobStateRetryable,
-					rivertype.JobStateScheduled,
-				},
-			}
-		}
-		rparams = append(rparams, river.InsertManyParams{
-			Args:       riverJobArgs{Job: job},
-			InsertOpts: &insertOpts,
-		})
+		rparams = append(rparams, w.makeRiverJobArgs(job))
 	}
 	if _, err = w.riverClient.InsertManyTx(ctx, tx, rparams); err != nil {
 		return err
@@ -142,8 +126,43 @@ func (w *RiverJobs) AddJobs(ctx context.Context, jobs []jobs.Job) error {
 	return tx.Commit(ctx)
 }
 
+func (w *RiverJobs) makeRiverJobArgs(job jobs.Job) river.InsertManyParams {
+	insertOpts := river.InsertOpts{}
+	insertOpts.Queue = w.queueName(job.Queue)
+	if job.Unique {
+		insertOpts.UniqueOpts = river.UniqueOpts{
+			ByArgs:   true,
+			ByPeriod: 24 * time.Hour,
+			ByState: []rivertype.JobState{
+				rivertype.JobStateAvailable,
+				rivertype.JobStatePending,
+				rivertype.JobStateRunning,
+				rivertype.JobStateRetryable,
+				rivertype.JobStateScheduled,
+			},
+		}
+	}
+	return river.InsertManyParams{
+		Args:       riverJobArgs{Job: job},
+		InsertOpts: &insertOpts,
+	}
+}
+
 func (w *RiverJobs) AddJob(ctx context.Context, job jobs.Job) error {
 	return w.AddJobs(ctx, []jobs.Job{job})
+}
+
+func (w *RiverJobs) AddPeriodicJob(ctx context.Context, jobFunc func() jobs.Job, period time.Duration, cronTab string) error {
+	pj := river.NewPeriodicJob(
+		river.PeriodicInterval(period),
+		func() (river.JobArgs, *river.InsertOpts) {
+			p := w.makeRiverJobArgs(jobFunc())
+			return p.Args, p.InsertOpts
+		},
+		nil,
+	)
+	w.periodicJobs = append(w.periodicJobs, pj)
+	return nil
 }
 
 func (w *RiverJobs) RunJob(ctx context.Context, job jobs.Job) error {
@@ -171,6 +190,9 @@ func (w *RiverJobs) RunJob(ctx context.Context, job jobs.Job) error {
 func (w *RiverJobs) Run(ctx context.Context) error {
 	if err := w.riverClient.Start(ctx); err != nil {
 		return err
+	}
+	for _, pj := range w.periodicJobs {
+		w.riverClient.PeriodicJobs().Add(pj)
 	}
 	<-w.riverClient.Stopped()
 	return nil
