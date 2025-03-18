@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
+	"time"
 )
 
 type JobArgs map[string]any
@@ -48,3 +49,7 @@ type JobWorker interface {
 type JobFn func() JobWorker
 
 type JobMiddleware func(JobWorker, Job) JobWorker
+
+type JobQueuePeriodic interface {
+	AddPeriodicJob(context.Context, func() Job, time.Duration) error
+}
