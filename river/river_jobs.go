@@ -152,7 +152,7 @@ func (w *RiverJobs) AddJob(ctx context.Context, job jobs.Job) error {
 	return w.AddJobs(ctx, []jobs.Job{job})
 }
 
-func (w *RiverJobs) AddPeriodicJob(ctx context.Context, jobFunc func() jobs.Job, period time.Duration) error {
+func (w *RiverJobs) AddPeriodicJob(ctx context.Context, jobFunc func() jobs.Job, period time.Duration, cronTab string) error {
 	pj := river.NewPeriodicJob(
 		river.PeriodicInterval(period),
 		func() (river.JobArgs, *river.InsertOpts) {

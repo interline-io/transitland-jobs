@@ -17,6 +17,7 @@ type JobQueue interface {
 	AddJobType(JobFn) error
 	AddJob(context.Context, Job) error
 	AddJobs(context.Context, []Job) error
+	AddPeriodicJob(context.Context, func() Job, time.Duration, string) error
 	RunJob(context.Context, Job) error
 	Run(context.Context) error
 	Stop(context.Context) error
@@ -49,7 +50,3 @@ type JobWorker interface {
 type JobFn func() JobWorker
 
 type JobMiddleware func(JobWorker, Job) JobWorker
-
-type JobQueuePeriodic interface {
-	AddPeriodicJob(context.Context, func() Job, time.Duration) error
-}
