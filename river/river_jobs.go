@@ -22,11 +22,35 @@ func init() {
 //////////////
 
 type riverJobArgs struct {
-	jobs.Job
+	Queue       string       `json:"queue"`
+	JobType     string       `json:"job_type" river:"unique"`
+	JobArgs     jobs.JobArgs `json:"job_args" river:"unique"`
+	JobDeadline int64        `json:"job_deadline"`
+	Unique      bool         `json:"unique"`
 }
 
 func (r riverJobArgs) Kind() string {
 	return "riverJobArgs"
+}
+
+func (r riverJobArgs) ToJob() jobs.Job {
+	return jobs.Job{
+		Queue:       r.Queue,
+		JobType:     r.JobType,
+		JobArgs:     r.JobArgs,
+		JobDeadline: r.JobDeadline,
+		Unique:      r.Unique,
+	}
+}
+
+func newRiverJobArgsFrmoJob(job jobs.Job) riverJobArgs {
+	return riverJobArgs{
+		Queue:       job.Queue,
+		JobType:     job.JobType,
+		JobArgs:     job.JobArgs,
+		JobDeadline: job.JobDeadline,
+		Unique:      job.Unique,
+	}
 }
 
 //////////////
@@ -56,13 +80,12 @@ func (w *RiverJobs) RiverClient() *river.Client[pgx.Tx] {
 }
 
 func (w *RiverJobs) initClient() error {
-	fmt.Println("initClient")
 	var err error
 	defaultQueue := w.queueName("default")
 	w.riverWorkers = river.NewWorkers()
 	w.riverClient, err = river.NewClient(riverpgxv5.New(w.pool), &river.Config{
 		Queues:            map[string]river.QueueConfig{defaultQueue: {MaxWorkers: 4}},
-		JobTimeout:        60 * time.Minute,
+		JobTimeout:        120 * time.Minute,
 		Workers:           w.riverWorkers,
 		FetchCooldown:     50 * time.Millisecond,
 		FetchPollInterval: 100 * time.Millisecond,
@@ -71,7 +94,7 @@ func (w *RiverJobs) initClient() error {
 		return err
 	}
 	workFunc := river.WorkFunc(func(ctx context.Context, outerJob *river.Job[riverJobArgs]) error {
-		err := w.RunJob(ctx, outerJob.Args.Job)
+		err := w.RunJob(ctx, outerJob.Args.ToJob())
 		if err != nil {
 			return river.JobCancel(err)
 		}
@@ -136,14 +159,14 @@ func (w *RiverJobs) makeRiverJobArgs(job jobs.Job) river.InsertManyParams {
 			ByState: []rivertype.JobState{
 				rivertype.JobStateAvailable,
 				rivertype.JobStatePending,
-				rivertype.JobStateRunning,
 				rivertype.JobStateRetryable,
+				rivertype.JobStateRunning,
 				rivertype.JobStateScheduled,
 			},
 		}
 	}
 	return river.InsertManyParams{
-		Args:       riverJobArgs{Job: job},
+		Args:       newRiverJobArgsFrmoJob(job),
 		InsertOpts: &insertOpts,
 	}
 }
